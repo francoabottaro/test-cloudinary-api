@@ -1,10 +1,26 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { CloudinaryService } from 'nestjs-cloudinary-community';
+import {
+  CloudinaryService,
+  cloudinary as cloudinarySdk,
+} from 'nestjs-cloudinary-community';
 import { EntityNotFoundError } from 'typeorm';
 import { Image } from './entities/image.entity';
 import { ImageService } from './image.service';
+
+jest.mock('nestjs-cloudinary-community', () => {
+  const actual = jest.requireActual<
+    typeof import('nestjs-cloudinary-community')
+  >('nestjs-cloudinary-community');
+  return {
+    ...actual,
+    cloudinary: {
+      ...actual.cloudinary,
+      image: jest.fn(() => 'https://cdn.example/transformed.png'),
+    },
+  };
+});
 
 type RepoMock = {
   create: jest.Mock;
@@ -25,7 +41,7 @@ type CloudinaryMock = {
 describe('ImageService', () => {
   let service: ImageService;
   let repository: RepoMock;
-  let cloudinary: CloudinaryMock;
+  let cloudinarySvc: CloudinaryMock;
 
   const multerFile = {
     fieldname: 'file',
@@ -45,7 +61,7 @@ describe('ImageService', () => {
       update: jest.fn(),
       delete: jest.fn(),
     };
-    cloudinary = {
+    cloudinarySvc = {
       uploadOne: jest.fn(),
       uploadMany: jest.fn(),
       replaceOne: jest.fn(),
@@ -56,7 +72,7 @@ describe('ImageService', () => {
       providers: [
         ImageService,
         { provide: getRepositoryToken(Image), useValue: repository },
-        { provide: CloudinaryService, useValue: cloudinary },
+        { provide: CloudinaryService, useValue: cloudinarySvc },
       ],
     }).compile();
 
@@ -69,7 +85,7 @@ describe('ImageService', () => {
 
   describe('create', () => {
     it('uploads, persists with default folder, and returns payload', async () => {
-      cloudinary.uploadOne.mockResolvedValue({
+      cloudinarySvc.uploadOne.mockResolvedValue({
         url: 'https://cdn.example/u.png',
         id_public: 'images/u',
       });
@@ -84,7 +100,10 @@ describe('ImageService', () => {
 
       const result = await service.create(multerFile);
 
-      expect(cloudinary.uploadOne).toHaveBeenCalledWith(multerFile, 'images');
+      expect(cloudinarySvc.uploadOne).toHaveBeenCalledWith(
+        multerFile,
+        'images',
+      );
       expect(repository.create).toHaveBeenCalledWith({
         url: 'https://cdn.example/u.png',
         public_id: 'images/u',
@@ -97,7 +116,7 @@ describe('ImageService', () => {
     });
 
     it('passes custom folder to uploadOne', async () => {
-      cloudinary.uploadOne.mockResolvedValue({
+      cloudinarySvc.uploadOne.mockResolvedValue({
         url: 'https://cdn.example/u.png',
         id_public: 'custom/u',
       });
@@ -106,14 +125,24 @@ describe('ImageService', () => {
 
       await service.create(multerFile, 'custom');
 
-      expect(cloudinary.uploadOne).toHaveBeenCalledWith(multerFile, 'custom');
+      expect(cloudinarySvc.uploadOne).toHaveBeenCalledWith(
+        multerFile,
+        'custom',
+      );
+    });
+
+    it('propagates upload failures', async () => {
+      cloudinarySvc.uploadOne.mockRejectedValue(new Error('upload failed'));
+
+      await expect(service.create(multerFile)).rejects.toThrow('upload failed');
+      expect(repository.save).not.toHaveBeenCalled();
     });
   });
 
   describe('createMany', () => {
     it('uploads many and saves mapped rows', async () => {
       const files = [multerFile, multerFile];
-      cloudinary.uploadMany.mockResolvedValue([
+      cloudinarySvc.uploadMany.mockResolvedValue([
         { url: 'https://a', id_public: 'p/a' },
         { url: 'https://b', id_public: 'p/b' },
       ]);
@@ -126,7 +155,7 @@ describe('ImageService', () => {
 
       const result = await service.createMany(files);
 
-      expect(cloudinary.uploadMany).toHaveBeenCalledWith(files, 'images');
+      expect(cloudinarySvc.uploadMany).toHaveBeenCalledWith(files, 'images');
       expect(repository.create).toHaveBeenCalledWith([
         { url: 'https://a', public_id: 'p/a' },
         { url: 'https://b', public_id: 'p/b' },
@@ -135,6 +164,21 @@ describe('ImageService', () => {
         message: 'Images created successfully',
         images: createdRows,
       });
+    });
+
+    it('passes custom folder to uploadMany', async () => {
+      const files = [multerFile];
+      cloudinarySvc.uploadMany.mockResolvedValue([
+        { url: 'https://a', id_public: 'gallery/a' },
+      ]);
+      repository.create.mockReturnValue([
+        { url: 'https://a', public_id: 'gallery/a' },
+      ]);
+      repository.save.mockResolvedValue([]);
+
+      await service.createMany(files, 'gallery');
+
+      expect(cloudinarySvc.uploadMany).toHaveBeenCalledWith(files, 'gallery');
     });
   });
 
@@ -161,24 +205,38 @@ describe('ImageService', () => {
   });
 
   describe('findOne', () => {
-    it('returns image when found', async () => {
+    beforeEach(() => {
+      (cloudinarySdk.image as jest.Mock).mockReturnValue(
+        'https://cdn.example/transformed.png',
+      );
+    });
+
+    it('returns image when found and replaces url via cloudinary.image', async () => {
       const row: Image = {
         id_image: 5,
-        url: 'x',
-        public_id: 'p',
+        url: 'https://original.example/x',
+        public_id: 'folder/item',
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      repository.findOneOrFail.mockResolvedValue(row);
+      repository.findOneOrFail.mockResolvedValue({ ...row });
 
       const result = await service.findOne(5);
 
       expect(repository.findOneOrFail).toHaveBeenCalledWith({
         where: { id_image: 5 },
       });
+      expect(cloudinarySdk.image).toHaveBeenCalledWith('folder/item', {
+        width: 100,
+        height: 100,
+        crop: 'fill',
+      });
       expect(result).toEqual({
         message: 'Image found successfully',
-        image: row,
+        image: {
+          ...row,
+          url: 'https://cdn.example/transformed.png',
+        },
       });
     });
 
@@ -202,7 +260,7 @@ describe('ImageService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       });
-      cloudinary.replaceOne.mockResolvedValue({
+      cloudinarySvc.replaceOne.mockResolvedValue({
         url: 'https://cdn.example/new.png',
         id_public: 'replaced',
       });
@@ -218,11 +276,26 @@ describe('ImageService', () => {
         multerFile,
       );
 
-      expect(cloudinary.replaceOne).toHaveBeenCalledWith(multerFile, 'old/id');
+      expect(cloudinarySvc.replaceOne).toHaveBeenCalledWith(
+        multerFile,
+        'old/id',
+      );
       expect(repository.update).toHaveBeenCalledWith(2, {
         url: 'https://cdn.example/new.png',
       });
       expect(result).toEqual({ message: 'Image updated successfully' });
+    });
+
+    it('does not replace when image id is missing', async () => {
+      repository.findOneOrFail.mockRejectedValue(
+        new EntityNotFoundError(Image, { id_image: 404 }),
+      );
+
+      await expect(
+        service.update(404, { public_id: 'any' }, multerFile),
+      ).rejects.toBeInstanceOf(EntityNotFoundError);
+      expect(cloudinarySvc.replaceOne).not.toHaveBeenCalled();
+      expect(repository.update).not.toHaveBeenCalled();
     });
   });
 
@@ -241,16 +314,28 @@ describe('ImageService', () => {
         raw: [],
       });
       const save = jest.fn().mockResolvedValue(undefined);
-      cloudinary.delete.mockReturnValue({ save });
+      cloudinarySvc.delete.mockReturnValue({ save });
 
       const result = await service.remove(3);
 
       expect(repository.delete).toHaveBeenCalledWith(3);
-      expect(cloudinary.delete).toHaveBeenCalledWith([
+      expect(cloudinarySvc.delete).toHaveBeenCalledWith([
         { kind: 'one', publicId: 'folder/x' },
       ]);
       expect(save).toHaveBeenCalled();
       expect(result).toEqual({ message: 'Image 3 deleted successfully' });
+    });
+
+    it('does not delete when image is missing', async () => {
+      repository.findOneOrFail.mockRejectedValue(
+        new EntityNotFoundError(Image, { id_image: 99 }),
+      );
+
+      await expect(service.remove(99)).rejects.toBeInstanceOf(
+        EntityNotFoundError,
+      );
+      expect(repository.delete).not.toHaveBeenCalled();
+      expect(cloudinarySvc.delete).not.toHaveBeenCalled();
     });
   });
 
@@ -286,12 +371,12 @@ describe('ImageService', () => {
         raw: [],
       });
       const save = jest.fn().mockResolvedValue(undefined);
-      cloudinary.delete.mockReturnValue({ save });
+      cloudinarySvc.delete.mockReturnValue({ save });
 
       const result = await service.removeFolder('summer');
 
       expect(repository.delete).toHaveBeenCalledWith([1, 2]);
-      expect(cloudinary.delete).toHaveBeenCalledWith({
+      expect(cloudinarySvc.delete).toHaveBeenCalledWith({
         kind: 'byFolder',
         path: 'summer',
       });
@@ -333,18 +418,45 @@ describe('ImageService', () => {
         raw: [],
       });
       const save = jest.fn().mockResolvedValue(undefined);
-      cloudinary.delete.mockReturnValue({ save });
+      cloudinarySvc.delete.mockReturnValue({ save });
 
       const result = await service.removeMany([1, 2]);
 
       expect(repository.delete).toHaveBeenCalledWith([1, 2]);
-      expect(cloudinary.delete).toHaveBeenCalledWith([
+      expect(cloudinarySvc.delete).toHaveBeenCalledWith([
         { kind: 'one', publicId: 'p/1' },
         { kind: 'one', publicId: 'p/2' },
       ]);
       expect(result).toEqual({
         message: 'Images deleted successfully: 1, 2',
       });
+    });
+
+    it('deletes only rows that exist and still echoes requested ids in message', async () => {
+      const rows: Image[] = [
+        {
+          id_image: 1,
+          url: '',
+          public_id: 'p/1',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ];
+      repository.find.mockResolvedValue(rows);
+      repository.delete.mockResolvedValue({
+        affected: 1,
+        raw: [],
+      });
+      const save = jest.fn().mockResolvedValue(undefined);
+      cloudinarySvc.delete.mockReturnValue({ save });
+
+      const result = await service.removeMany([1, 99]);
+
+      expect(repository.delete).toHaveBeenCalledWith([1]);
+      expect(cloudinarySvc.delete).toHaveBeenCalledWith([
+        { kind: 'one', publicId: 'p/1' },
+      ]);
+      expect(result.message).toBe('Images deleted successfully: 1, 99');
     });
   });
 });
