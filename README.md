@@ -1,98 +1,88 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# test-cloudinary-api
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+English | [Español](README.es.md)
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Overview
 
-## Description
+This repository is a **small NestJS API** used to **try out and document** integration with [**nestjs-cloudinary-community**](https://www.npmjs.com/package/nestjs-cloudinary-community) — a Nest-friendly layer around Cloudinary uploads, replacements, and deletes — together with **PostgreSQL** (TypeORM), **Swagger**, and basic **CI hooks** (Husky, lint-staged, Commitlint).
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+It is intentionally scoped as a **sandbox / proof-of-concept**, not a production product.
 
-## Project setup
+## Features
 
-```bash
-$ npm install
-```
+- REST **image** module: upload (single / many), list, get by id, update (replace in Cloudinary + DB), delete (single, bulk, by folder path segment).
+- **TypeORM** + Postgres (`compose.yml` for local DB).
+- **Swagger UI** at `/swagger` when `NODE_ENV=development` (see `src/main.ts`).
+- **Unit tests** (`*.spec.ts`) and **HTTP e2e-style tests** under `test/` (mocked `ImageService`, no real Cloudinary/DB in e2e).
+- **Husky**: pre-commit runs lint-staged (ESLint, Prettier, related Jest); **commitlint** enforces [Conventional Commits](https://www.conventionalcommits.org/) with a **required scope** (see `commitlint.config.js`).
 
-## Compile and run the project
+## Prerequisites
 
-```bash
-# development
-$ npm run start
+- Node.js 20+ (or current LTS you use for Nest 11).
+- npm.
+- Docker (optional) for Postgres via `docker compose up -d`.
 
-# watch mode
-$ npm run start:dev
+## Setup
 
-# production mode
-$ npm run start:prod
-```
+1. Clone the repo and install dependencies:
 
-## Run tests
+   ```bash
+   npm install
+   ```
 
-```bash
-# unit tests
-$ npm run test
+2. Copy environment variables:
 
-# e2e tests
-$ npm run test:e2e
+   ```bash
+   cp .env.example .env
+   ```
 
-# test coverage
-$ npm run test:cov
-```
+   Fill in **Cloudinary** and **database** values. If Postgres runs in Docker, align credentials with `compose.yml` (first run may need a fresh volume if passwords changed — see compose docs / `docker compose down -v`).
 
-## Deployment
+3. Start the database (optional):
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+   ```bash
+   docker compose up -d
+   ```
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+4. Run the API:
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+   ```bash
+   npm run start:dev
+   ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+   Default URL: `http://localhost:3000` (or `PORT` from `.env`).
 
-## Resources
+## Scripts
 
-Check out a few resources that may come in handy when working with NestJS:
+| Command              | Description              |
+| -------------------- | ------------------------ |
+| `npm run start:dev`  | Nest in watch mode       |
+| `npm run build`      | Production build         |
+| `npm run start:prod` | Run compiled `dist/main` |
+| `npm run lint`       | ESLint on `src` / `test` |
+| `npm run format`     | Prettier write           |
+| `npm test`           | Unit tests (Jest)        |
+| `npm run test:e2e`   | E2e Jest suite           |
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+## API quick reference
 
-## Support
+- Base path: `/image` (see `ImageController`).
+- **Swagger**: `http://localhost:<PORT>/swagger` when `NODE_ENV=development`.
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+## Commit history (Conventional Commits)
 
-## Stay in touch
+Recent history (oldest → newest):
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+| Hash      | Message                                                                |
+| --------- | ---------------------------------------------------------------------- |
+| `960f385` | `chore(deps): add nestjs project dependencies and tooling configs`     |
+| `94a65b5` | `feat(app): add nest bootstrap with typeorm postgres and cloudinary`   |
+| `9ee5b2a` | `feat(image): add image module with cloudinary upload and persistence` |
+| `8dad489` | `test(tests): add unit specs and http e2e harness for image routes`    |
+| `4a2d69b` | `chore(ci): add husky hooks lint-staged and commitlint`                |
+
+Commit messages follow **type(scope): subject**; allowed scopes are defined in `commitlint.config.js` (e.g. `image`, `app`, `ci`, `tests`, `deps`, …).
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+MIT — see `package.json` (`"license": "MIT"`).
