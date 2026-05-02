@@ -51,12 +51,15 @@ export class ImageService {
       where: { id_image },
     });
     // ? Example of how to get a custom url from Cloudinary
-    image.url = cloudinary.image(image.public_id, {
+    const img_element = cloudinary.image(image.public_id, {
       width: 100,
       height: 100,
       crop: 'fill',
     });
-    return { message: `Image found successfully`, image };
+    return {
+      message: `Image found successfully`,
+      image: { img_element, ...image },
+    };
   }
 
   async update(

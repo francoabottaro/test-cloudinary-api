@@ -180,6 +180,17 @@ describe('ImageService', () => {
 
       expect(cloudinarySvc.uploadMany).toHaveBeenCalledWith(files, 'gallery');
     });
+
+    it('propagates uploadMany failures before save', async () => {
+      cloudinarySvc.uploadMany.mockRejectedValue(
+        new Error('batch upload failed'),
+      );
+
+      await expect(service.createMany([multerFile])).rejects.toThrow(
+        'batch upload failed',
+      );
+      expect(repository.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('findAll', () => {
@@ -211,7 +222,7 @@ describe('ImageService', () => {
       );
     });
 
-    it('returns image when found and replaces url via cloudinary.image', async () => {
+    it('returns row plus img_element from cloudinary.image', async () => {
       const row: Image = {
         id_image: 5,
         url: 'https://original.example/x',
@@ -219,6 +230,8 @@ describe('ImageService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      const transformed = 'https://cdn.example/transformed.png';
+      (cloudinarySdk.image as jest.Mock).mockReturnValue(transformed);
       repository.findOneOrFail.mockResolvedValue({ ...row });
 
       const result = await service.findOne(5);
@@ -234,10 +247,25 @@ describe('ImageService', () => {
       expect(result).toEqual({
         message: 'Image found successfully',
         image: {
+          img_element: transformed,
           ...row,
-          url: 'https://cdn.example/transformed.png',
         },
       });
+    });
+
+    it('propagates cloudinary.image failures', async () => {
+      repository.findOneOrFail.mockResolvedValue({
+        id_image: 1,
+        url: 'u',
+        public_id: 'p',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      (cloudinarySdk.image as jest.Mock).mockImplementation(() => {
+        throw new Error('image tag failed');
+      });
+
+      await expect(service.findOne(1)).rejects.toThrow('image tag failed');
     });
 
     it('propagates repository errors when missing', async () => {
@@ -284,6 +312,22 @@ describe('ImageService', () => {
         url: 'https://cdn.example/new.png',
       });
       expect(result).toEqual({ message: 'Image updated successfully' });
+    });
+
+    it('propagates replaceOne failures', async () => {
+      repository.findOneOrFail.mockResolvedValue({
+        id_image: 2,
+        url: '',
+        public_id: 'x',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      cloudinarySvc.replaceOne.mockRejectedValue(new Error('replace failed'));
+
+      await expect(
+        service.update(2, { public_id: 'x' }, multerFile),
+      ).rejects.toThrow('replace failed');
+      expect(repository.update).not.toHaveBeenCalled();
     });
 
     it('does not replace when image id is missing', async () => {
