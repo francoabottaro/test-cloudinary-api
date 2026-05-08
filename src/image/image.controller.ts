@@ -22,37 +22,13 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { BulkDeleteImagesDto } from './dto/bulk-delete-images.dto';
 import { UpdateImageDto } from './dto/update-image.dto';
 import { ImageService } from './image.service';
-
-const multipartFileField = {
-  type: 'object' as const,
-  properties: {
-    file: { type: 'string', format: 'binary' },
-    folder: {
-      type: 'string',
-      description:
-        'Target folder in Cloudinary (optional; defaults to "images")',
-      example: 'images',
-    },
-  },
-  required: ['file'],
-};
-
-const multipartFilesField = {
-  type: 'object' as const,
-  properties: {
-    files: {
-      type: 'array',
-      items: { type: 'string', format: 'binary' },
-    },
-    folder: {
-      type: 'string',
-      description:
-        'Target folder in Cloudinary (optional; defaults to "images")',
-      example: 'images',
-    },
-  },
-  required: ['files'],
-};
+import {
+  postSingleFileField,
+  postMultipleFilesField,
+  updateImageBodySchema,
+  deleteFolderParamSchema,
+  deleteImageParamSchema,
+} from './schema/body.schema';
 
 @ApiTags('image')
 @Controller('image')
@@ -62,7 +38,7 @@ export class ImageController {
   @Post()
   @ApiOperation({ summary: 'Upload a single image' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: multipartFileField })
+  @ApiBody({ schema: postSingleFileField })
   @UseInterceptors(FileInterceptor('file'))
   create(
     @UploadedFile() file: Express.Multer.File,
@@ -74,7 +50,7 @@ export class ImageController {
   @Post('many')
   @ApiOperation({ summary: 'Upload multiple images' })
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ schema: multipartFilesField })
+  @ApiBody({ schema: postMultipleFilesField })
   @UseInterceptors(FilesInterceptor('files'))
   createMany(
     @UploadedFiles() files: Express.Multer.File[],
@@ -102,16 +78,7 @@ export class ImageController {
   })
   @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', type: 'integer', example: 1 })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['file', 'public_id'],
-      properties: {
-        public_id: { type: 'string', example: 'images/abc123' },
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
+  @ApiBody(updateImageBodySchema)
   @UseInterceptors(FileInterceptor('file'))
   update(
     @Param('id', ParseIntPipe) id: number,
@@ -132,19 +99,14 @@ export class ImageController {
   @ApiOperation({
     summary: 'Delete a Cloudinary folder path and matching DB records',
   })
-  @ApiParam({
-    name: 'path',
-    description:
-      'Single path segment only (e.g. "summer"). Multi-segment paths do not match this route.',
-    example: 'summer',
-  })
+  @ApiParam(deleteFolderParamSchema)
   removeFolder(@Param('path') path: string) {
     return this.imageService.removeFolder(path);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete an image by id' })
-  @ApiParam({ name: 'id', type: 'integer', example: 1 })
+  @ApiParam(deleteImageParamSchema)
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.imageService.remove(id);
   }

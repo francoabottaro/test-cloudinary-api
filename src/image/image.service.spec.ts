@@ -280,14 +280,15 @@ describe('ImageService', () => {
   });
 
   describe('update', () => {
-    it('replaces asset and updates url', async () => {
-      repository.findOneOrFail.mockResolvedValue({
+    it('replaces asset, persists new url, and returns the loaded image row', async () => {
+      const existing: Image = {
         id_image: 2,
-        url: '',
-        public_id: '',
+        url: 'https://old',
+        public_id: 'old/id',
         createdAt: new Date(),
         updatedAt: new Date(),
-      });
+      };
+      repository.findOneOrFail.mockResolvedValue(existing);
       cloudinarySvc.replaceOne.mockResolvedValue({
         url: 'https://cdn.example/new.png',
         id_public: 'replaced',
@@ -311,10 +312,11 @@ describe('ImageService', () => {
       expect(repository.update).toHaveBeenCalledWith(2, {
         url: 'https://cdn.example/new.png',
       });
-      expect(result).toEqual({ message: 'Image updated successfully' });
+      expect(result).toBe(existing);
     });
 
-    it('propagates replaceOne failures', async () => {
+    it('swallows replaceOne failures and does not update the row', async () => {
+      const logSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       repository.findOneOrFail.mockResolvedValue({
         id_image: 2,
         url: '',
@@ -326,8 +328,11 @@ describe('ImageService', () => {
 
       await expect(
         service.update(2, { public_id: 'x' }, multerFile),
-      ).rejects.toThrow('replace failed');
+      ).resolves.toBeUndefined();
+
       expect(repository.update).not.toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalled();
+      logSpy.mockRestore();
     });
 
     it('does not replace when image id is missing', async () => {

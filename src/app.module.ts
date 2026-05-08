@@ -1,6 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CloudinaryModule } from 'nestjs-cloudinary-community';
-import 'dotenv/config';
 import { ConfigModule } from '@nestjs/config';
 import { ImageModule } from './image/image.module';
 import { TypeOrmModule } from '@nestjs/typeorm';

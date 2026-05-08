@@ -14,5 +14,10 @@ export const TypeOrmOptions: TypeOrmModuleAsyncOptions = {
     database: configService.get('NAME_DB')!,
     entities: [Image],
     synchronize: true,
+    extra: {
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 2000,
+    },
   }),
 };

@@ -67,15 +67,19 @@ export class ImageService {
     updateImageDto: UpdateImageDto,
     file: Express.Multer.File,
   ) {
-    await this.imageRepository.findOneOrFail({
+    const image = await this.imageRepository.findOneOrFail({
       where: { id_image },
     });
-    const { url } = await this.cloudinaryService.replaceOne(
-      file,
-      updateImageDto.public_id,
-    );
-    await this.imageRepository.update(id_image, { url });
-    return { message: `Image updated successfully` };
+    try {
+      const { url } = await this.cloudinaryService.replaceOne(
+        file,
+        updateImageDto.public_id,
+      );
+      await this.imageRepository.update(id_image, { url });
+      return image;
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   async remove(id_image: number) {
